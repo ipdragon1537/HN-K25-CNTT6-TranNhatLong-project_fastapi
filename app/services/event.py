@@ -6,14 +6,11 @@ from sqlalchemy.orm import Session
 from app.models.event import EventModel, EventStaffModel
 from app.schemas.event import EventCreate, EventUpdate
 
-
 def create_event(db: Session, owner_id: int, data: EventCreate) -> EventModel:
-    event = EventModel(name=data.name, description=data.description, owner_id=owner_id)
+    event = EventModel(name=data.name, description=data.description, owner_id=owner_id,)
     db.add(event)
     db.commit()
     db.refresh(event)
-
-    # Người tạo tự động trở thành OWNER trong bảng event_staff
     staff = EventStaffModel(event_id=event.id, user_id=owner_id, role="OWNER")
     db.add(staff)
     db.commit()
@@ -82,9 +79,8 @@ def add_member(db: Session, event_id: int, user_id: int) -> EventStaffModel:
     return staff
 
 
-def list_members(db: Session, event_id: int) -> list[EventStaffModel]:
-    return db.query(EventStaffModel).filter(EventStaffModel.event_id == event_id).all()
-
+def list_members(db: Session, event_id: int,) -> list[EventStaffModel]:
+    return db.query(EventStaffModel).filter(EventStaffModel.event_id == event_id,EventStaffModel.role == "MEMBER").all()
 
 def remove_member(db: Session, event_id: int, user_id: int) -> None:
     staff = get_staff(db, event_id, user_id)

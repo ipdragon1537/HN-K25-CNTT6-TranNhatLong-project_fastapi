@@ -1,27 +1,11 @@
-from pathlib import Path
-from functools import lru_cache
-from pydantic_settings import BaseSettings, SettingsConfigDict
-BASE_DIR = Path(__file__).resolve().parent.parent
-ENV_FILE_PATH = BASE_DIR / ".env"
-class Settings(BaseSettings):
-    PORT: int = 8000
-    ENVIRONMENT: str = "development"
-    DATABASE_URL: str
-    SECRET_KEY: str
-    JWT_SECRET: str
-    JWT_ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
-    REFRESH_TOKEN_EXPIRE_DAYS: int = 7
-    model_config = SettingsConfigDict(
-        env_file=ENV_FILE_PATH,
-        env_file_encoding="utf-8",
-        case_sensitive=False,
-        env_ignore_empty=True,
-        extra="ignore"
-    )
+import os
+from dotenv import load_dotenv
 
-@lru_cache
-def get_settings() -> Settings:
-    return Settings()
+load_dotenv()  # đọc file .env nếu có
 
-settings = get_settings()
+DATABASE_URL = os.getenv(
+    "DATABASE_URL", "mysql+pymysql://root:123456@localhost:3306/event_manager"
+)
+SECRET_KEY = os.getenv("SECRET_KEY", "change-this-secret-key")
+ALGORITHM = os.getenv("ALGORITHM", "HS256")
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60"))

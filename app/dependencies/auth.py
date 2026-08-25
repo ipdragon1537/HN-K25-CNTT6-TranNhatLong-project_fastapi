@@ -1,28 +1,47 @@
-from fastapi import Depends,HTTPException,status
-from fastapi.security import HTTPBearer,HTTPAuthorizationCredentials
-from jose import jwt,JWTError
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
-from app.core.config import settings
+
+from app.core.security import decode_access_token
 from app.db.database import get_db
 from app.models.user import UserModel
-oauth2_schemas = HTTPBearer()
-def get_current_user(token:HTTPAuthorizationCredentials = Depends(oauth2_schemas),db:Session = Depends(get_db)) -> UserModel:
-    token = token.credentials
-    try:
-        payload = jwt.decode(token,settings.SECRET_KEY,algorithms=[settings.JWT_ALGORITHM])
-        email:str = payload.get("sub")
-        if email is None:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,detail="Token ko hợp lệ hoặc đã hết hạn")
-    except JWTError:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,detail="Token ko hợp lệ hoặc đã hết hạn")
-    user = db.query(UserModel).filter(UserModel.email == email).first()
-    if not user:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,detail="Token ko hợp lệ hoặc đã hết hạn")
+
+bearer_scheme = HTTPBearer(description="Dán access token nhận được từ /auth/login")
+
+
+def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
+    db: Session = Depends(get_db),
+) -> UserModel:
+    token = credentials.credentials
+    payload = decode_access_token(token)
+    if payload is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token không hợp lệ hoặc đã hết hạn",
+        )
+
+    user_id = payload.get("sub")
+    if user_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Token không hợp lệ"
+        )
+
+    user = db.query(UserModel).filter(UserModel.id == int(user_id)).first()
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Người dùng không tồn tại"
+        )
     if not user.is_active:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,detail="Tài khoản đã bị khoá")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Tài khoản không hoạt động"
+        )
     return user
-def require_admin(current_user:UserModel = Depends(get_current_user)):
+
+
+def require_admin(current_user: UserModel = Depends(get_current_user)) -> UserModel:
     if current_user.role != "ADMIN":
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,detail="Ko có quyền admin")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Chỉ Admin mới có quyền truy cập"
+        )
     return current_user
-        

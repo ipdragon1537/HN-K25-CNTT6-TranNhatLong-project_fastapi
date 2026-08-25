@@ -10,7 +10,6 @@ from app.services.event import get_staff
 
 def create_task(db: Session, event_id: int, data: EventTaskCreate) -> EventTaskModel:
     if data.assignee_id is not None:
-        # assignee phải là thành viên (staff) trong sự kiện
         if not get_staff(db, event_id, data.assignee_id):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="Assignee phải là thành viên của sự kiện",)
 

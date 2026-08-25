@@ -6,14 +6,12 @@ from pydantic import BaseModel, ConfigDict, Field
 Status = Literal["TODO", "IN_PROGRESS", "DONE"]
 Priority = Literal["LOW", "MEDIUM", "HIGH"]
 
-
 class EventTaskCreate(BaseModel):
     title: str = Field(min_length=1, max_length=255)
     description: Optional[str] = None
     due_date: Optional[datetime] = None
     priority: Priority = "MEDIUM"
     assignee_id: Optional[int] = None
-
 
 class EventTaskUpdate(BaseModel):
     title: Optional[str] = Field(default=None, min_length=1, max_length=255)
