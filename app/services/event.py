@@ -1,6 +1,5 @@
 from datetime import datetime
 from sqlalchemy.orm import Session
-from sqlalchemy import func
 from app.models.user import UserModel
 from app.models.event import EventModel,EventStaffModel
 from app.models.even_task import EventTaskModel
@@ -11,7 +10,7 @@ def create_event(db:Session,data,current_user:UserModel):
         owner_id = current_user.id
     )
     db.add(event)
-    db.commit()
+    db.flush()
     db.refresh(event)
     staff = EventStaffModel(
         event_id = event.id,
@@ -23,10 +22,10 @@ def create_event(db:Session,data,current_user:UserModel):
     db.commit()
     return event
 def get_current(db:Session,current_user:UserModel,search:str | None = None):
-    list_current = db.query(EventModel).join(EventStaffModel,EventModel.id == EventStaffModel.event_id)
+    list_current = db.query(EventModel).filter(EventModel.owner_id == current_user.id)
     if search:
         list_current = list_current.filter(EventModel.name.ilike(f"%{search}%"))
-    return list_current.all()
+    return list_current 
 def get_events(db:Session,event_id:int,current_user:UserModel):
     staff = db.query(EventStaffModel).filter(EventStaffModel.event_id == event_id,EventStaffModel.user_id == current_user.id).first()
     if not staff:
@@ -40,7 +39,7 @@ def update_event(db:Session,event_id:int,data,current_user:UserModel):
     if not event_user:
         return "EVENT_NOT_FOUND"
     if data.name is not None:
-        data.name == event_user.name
+        event_user.name = data.name
     if data.description is not None:
         event_user.description = data.description
     db.commit()
@@ -83,7 +82,7 @@ def delete_staff(db:Session,event_id:int,user_id:int,current_user:UserModel):
     if not staff:
         return "MEMBER_NOT_FOUND"
     if staff.role.upper() == "OWNER":
-        count = db.query(func.count(EventStaffModel.event_id)).filter(EventStaffModel.event_id == event_id,EventStaffModel.role == "OWNER").scalar()
+        count = db.query(EventStaffModel).filter(EventStaffModel.event_id == event_id,EventStaffModel.role == "OWNER").count()
         if count <= 1:
             return "CANNOT_DELETE_OWNER"
     db.delete(staff)

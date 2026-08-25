@@ -10,15 +10,15 @@ router = APIRouter(prefix="/event",tags=["Events"])
 def create(data:EventCreate,db:Session = Depends(get_db),current_user:UserModel = Depends(get_current_user)):
     return create_event(db,data,current_user)
 @router.get("")
-def get_all(seach:str |None = None,db:Session = Depends(get_db),current_user:UserModel = Depends(get_current_user)):
-    return get_current(db,current_user,seach)
+def get_all(search:str |None = None,db:Session = Depends(get_db),current_user:UserModel = Depends(get_current_user)):
+    return get_current(db,current_user,search).all()
 @router.get("/{event_id}")
 def detail(event_id:int,db:Session = Depends(get_db),current_user:UserModel = Depends(get_current_user)):
     event = get_events(db,event_id,current_user)
     if not event:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,detail="Bạn ko phải thành viên của sự kiện")
     return event
-@router.put("/{event_id}")
+@router.patch("/{event_id}")
 def update(event_id: int,data: EventUpdate,db: Session = Depends(get_db),current_user: UserModel = Depends(get_current_user)):
     result = update_event(db,event_id,data,current_user)
     if result == "NOT_OWNER":

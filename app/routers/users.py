@@ -16,4 +16,4 @@ def get_all_user(search:str | None = None,is_active:bool | None = None,admin:Use
         list_user = list_user.filter(or_(UserModel.full_name.ilike(f"%{search}%"),UserModel.email.ilike(f"%{search}%")))
     if is_active is not None:
         list_user = list_user.filter(UserModel.is_active == is_active)
-    return list_user.all() 
+    return list_user.filter(UserModel.role == "USER").all() 

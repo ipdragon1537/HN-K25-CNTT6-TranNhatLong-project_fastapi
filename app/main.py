@@ -10,10 +10,7 @@ from app.models import even_task, event as event_model, user
 
 
 Base.metadata.create_all(bind=engine)
-
 app = FastAPI()
-
-
 @app.get("/")
 def test_run():
     return {"message": "test success"}
