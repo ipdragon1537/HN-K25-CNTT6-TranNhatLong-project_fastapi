@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.db.database import get_db
 from app.dependencies.auth import get_current_user
-from app.models.user import User
+from app.models.user import UserModel
 from app.schemas.event_task import EventTaskCreate, EventTaskResponse, EventTaskUpdate
 from app.services.event import get_event_or_404, require_member
 from app.services.event_task import (
@@ -28,7 +28,7 @@ def create_task_endpoint(
     event_id: int,
     data: EventTaskCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: UserModel = Depends(get_current_user),
 ):
     get_event_or_404(db, event_id)
     require_member(db, event_id, current_user.id)
@@ -46,7 +46,7 @@ def list_tasks_endpoint(
     page: int = Query(default=1, ge=1),
     size: int = Query(default=10, ge=1, le=100),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: UserModel = Depends(get_current_user),
 ):
     get_event_or_404(db, event_id)
     require_member(db, event_id, current_user.id)
@@ -65,7 +65,7 @@ def list_tasks_endpoint(
 
 @router.get("/event-tasks/{task_id}", response_model=EventTaskResponse)
 def get_task_endpoint(
-    task_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
+    task_id: int, db: Session = Depends(get_db), current_user: UserModel = Depends(get_current_user)
 ):
     task = get_task_or_404(db, task_id)
     require_member(db, task.event_id, current_user.id)
@@ -77,7 +77,7 @@ def update_task_endpoint(
     task_id: int,
     data: EventTaskUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: UserModel = Depends(get_current_user),
 ):
     task = get_task_or_404(db, task_id)
     require_member(db, task.event_id, current_user.id)
@@ -86,7 +86,7 @@ def update_task_endpoint(
 
 @router.delete("/event-tasks/{task_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_task_endpoint(
-    task_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
+    task_id: int, db: Session = Depends(get_db), current_user: UserModel = Depends(get_current_user)
 ):
     task = get_task_or_404(db, task_id)
     require_member(db, task.event_id, current_user.id)

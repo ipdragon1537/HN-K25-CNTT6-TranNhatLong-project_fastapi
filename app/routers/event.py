@@ -25,7 +25,7 @@ router = APIRouter(prefix="/events", tags=["Events"])
 
 @router.post("", response_model=EventResponse, status_code=status.HTTP_201_CREATED)
 def create_event_endpoint(
-    data: EventCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
+    data: EventCreate, db: Session = Depends(get_db), current_user: UserModel = Depends(get_current_user)
 ):
     return create_event(db, current_user.id, data)
 
@@ -34,14 +34,14 @@ def create_event_endpoint(
 def list_events(
     search: Optional[str] = None,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: UserModel = Depends(get_current_user),
 ):
     return list_events_for_user(db, current_user.id, search)
 
 
 @router.get("/{event_id}", response_model=EventResponse)
 def get_event(
-    event_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
+    event_id: int, db: Session = Depends(get_db), current_user: UserModel = Depends(get_current_user)
 ):
     event = get_event_or_404(db, event_id)
     require_member(db, event_id, current_user.id)
@@ -53,7 +53,7 @@ def update_event_endpoint(
     event_id: int,
     data: EventUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: UserModel = Depends(get_current_user),
 ):
     event = get_event_or_404(db, event_id)
     require_owner(db, event_id, current_user.id)
@@ -62,7 +62,7 @@ def update_event_endpoint(
 
 @router.delete("/{event_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_event_endpoint(
-    event_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
+    event_id: int, db: Session = Depends(get_db), current_user: UserModel = Depends(get_current_user)
 ):
     event = get_event_or_404(db, event_id)
     require_owner(db, event_id, current_user.id)
@@ -74,7 +74,7 @@ def add_member_endpoint(
     event_id: int,
     data: MemberAdd,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: UserModel = Depends(get_current_user),
 ):
     get_event_or_404(db, event_id)
     require_owner(db, event_id, current_user.id)
@@ -83,7 +83,7 @@ def add_member_endpoint(
 
 @router.get("/{event_id}/members", response_model=list[MemberResponse])
 def list_members_endpoint(
-    event_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
+    event_id: int, db: Session = Depends(get_db), current_user: UserModel = Depends(get_current_user)
 ):
     get_event_or_404(db, event_id)
     require_member(db, event_id, current_user.id)
@@ -95,7 +95,7 @@ def remove_member_endpoint(
     event_id: int,
     user_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: UserModel = Depends(get_current_user),
 ):
     get_event_or_404(db, event_id)
     require_owner(db, event_id, current_user.id)
