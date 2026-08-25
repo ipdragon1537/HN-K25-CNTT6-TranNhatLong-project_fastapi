@@ -1,95 +1,101 @@
-from datetime import datetime
+from typing import Optional
+
+from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
-from app.models.user import UserModel
-from app.models.event import EventModel,EventStaffModel
-from app.models.even_task import EventTaskModel
-def create_event(db:Session,data,current_user:UserModel):
-    event = EventModel(
-        name = data.name,
-        description = data.description,
-        owner_id = current_user.id
-    )
+
+from app.models.event import EventModel, EventStaffModel
+from app.schemas.event import EventCreate, EventUpdate
+
+
+def create_event(db: Session, owner_id: int, data: EventCreate) -> EventModel:
+    event = EventModel(name=data.name, description=data.description, owner_id=owner_id)
     db.add(event)
-    db.flush()
+    db.commit()
     db.refresh(event)
-    staff = EventStaffModel(
-        event_id = event.id,
-        user_id = current_user.id,
-        role = "OWNER",
-        joined_at = datetime.now()
-    )
+
+    # Người tạo tự động trở thành OWNER trong bảng event_staff
+    staff = EventStaffModel(event_id=event.id, user_id=owner_id, role="OWNER")
     db.add(staff)
     db.commit()
     return event
-def get_current(db:Session,current_user:UserModel,search:str | None = None):
-    list_current = db.query(EventModel).filter(EventModel.owner_id == current_user.id)
-    if search:
-        list_current = list_current.filter(EventModel.name.ilike(f"%{search}%"))
-    return list_current 
-def get_events(db:Session,event_id:int,current_user:UserModel):
-    staff = db.query(EventStaffModel).filter(EventStaffModel.event_id == event_id,EventStaffModel.user_id == current_user.id).first()
+
+
+def list_events_for_user(db: Session, user_id: int, keyword: Optional[str] = None) -> list[EventModel]:
+    query = (
+        db.query(EventModel)
+        .join(EventStaffModel, EventStaffModel.event_id == EventModel.id)
+        .filter(EventStaffModel.user_id == user_id)
+    )
+    if keyword:
+        query = query.filter(EventModel.name.ilike(f"%{keyword}%"))
+    return query.order_by(EventModel.id).all()
+
+
+def get_event_or_404(db: Session, event_id: int) -> EventModel:
+    event = db.query(EventModel).filter(EventModel.id == event_id).first()
+    if not event:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sự kiện không tồn tại")
+    return event
+
+
+def get_staff(db: Session, event_id: int, user_id: int) -> Optional[EventStaffModel]:
+    return (db.query(EventStaffModel).filter(EventStaffModel.event_id == event_id, EventStaffModel.user_id == user_id).first())
+
+
+def require_member(db: Session, event_id: int, user_id: int) -> EventStaffModel:
+    staff = get_staff(db, event_id, user_id)
     if not staff:
-        return None
-    return db.query(EventModel).filter(EventModel.id == event_id).first()
-def update_event(db:Session,event_id:int,data,current_user:UserModel):
-    list_current = db.query(EventStaffModel).filter(EventStaffModel.event_id == event_id,EventStaffModel.user_id == current_user.id,EventStaffModel.role == "OWNER").first()
-    if not list_current:
-        return "NOT_OWNER"
-    event_user = db.query(EventModel).filter(EventModel.id == event_id).first()
-    if not event_user:
-        return "EVENT_NOT_FOUND"
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Bạn không phải thành viên sự kiện này")
+    return staff
+
+
+def require_owner(db: Session, event_id: int, user_id: int) -> EventStaffModel:
+    staff = require_member(db, event_id, user_id)
+    if staff.role != "OWNER":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Chỉ Owner mới có quyền thực hiện")
+    return staff
+
+
+def update_event(db: Session, event: EventModel, data: EventUpdate) -> EventModel:
     if data.name is not None:
-        event_user.name = data.name
+        event.name = data.name
     if data.description is not None:
-        event_user.description = data.description
+        event.description = data.description
     db.commit()
-    db.refresh(event_user)
-    return event_user
-def delete_event(db:Session,event_id:int,current_id:UserModel):
-    list_current = db.query(EventStaffModel).filter(EventStaffModel.event_id == event_id,EventStaffModel.user_id == current_id.id,EventStaffModel.role == "OWNER").first()
-    if not list_current:
-        return "NOT_OWNER"
-    event_user = db.query(EventModel).filter(EventModel.id == event_id).first()
-    if not event_user:
-        return "EVENT_NOT_FOUND"
-    db.query(EventStaffModel).filter(EventStaffModel.event_id == event_id).delete()
-    db.query(EventTaskModel).filter(EventTaskModel.event_id == event_id).delete()
-    db.delete(event_user)
+    db.refresh(event)
+    return event
+
+
+def delete_event(db: Session, event: EventModel) -> None:
+    db.delete(event)
     db.commit()
-    return True
-def add_member(db:Session,event_id:int,user_id:int,current_user:UserModel):
-    list_current = db.query(EventStaffModel).filter(EventStaffModel.event_id == event_id,EventStaffModel.user_id == current_user.id,EventStaffModel.role == "OWNER").first()
-    if not list_current:
-        return "NOT_OWNER"
-    event_user = db.query(EventModel).filter(EventModel.id == event_id).first()
-    if not event_user:
-        return "EVENT_NOT_FOUND"
-    user = db.query(UserModel).filter(UserModel.id == user_id).first()
-    if not user:
-        return "USER_NOT_FOUND"
-    staff = db.query(EventStaffModel).filter(EventStaffModel.event_id == event_id,EventStaffModel.user_id == user_id).first()
-    if staff:
-        return "ALREADY_MEMBER"
-    staff = EventStaffModel(event_id = event_id,user_id = user_id,role = "MEMBER",joined_at = datetime.now())
+
+
+def add_member(db: Session, event_id: int, user_id: int) -> EventStaffModel:
+    existing = get_staff(db, event_id, user_id)
+    if existing:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Người dùng đã là thành viên sự kiện")
+    staff = EventStaffModel(event_id=event_id, user_id=user_id, role="MEMBER")
     db.add(staff)
     db.commit()
+    db.refresh(staff)
     return staff
-def delete_staff(db:Session,event_id:int,user_id:int,current_user:UserModel):
-    request = db.query(EventStaffModel).filter(EventStaffModel.event_id == event_id,EventStaffModel.user_id == current_user.id).first()
-    if not request or request.role.upper() != "OWNER":
-        return "NOT_OWNER"
-    staff = db.query(EventStaffModel).filter(EventStaffModel.event_id == event_id,EventStaffModel.user_id == user_id).first()
+
+
+def list_members(db: Session, event_id: int) -> list[EventStaffModel]:
+    return db.query(EventStaffModel).filter(EventStaffModel.event_id == event_id).all()
+
+
+def remove_member(db: Session, event_id: int, user_id: int) -> None:
+    staff = get_staff(db, event_id, user_id)
     if not staff:
-        return "MEMBER_NOT_FOUND"
-    if staff.role.upper() == "OWNER":
-        count = db.query(EventStaffModel).filter(EventStaffModel.event_id == event_id,EventStaffModel.role == "OWNER").count()
-        if count <= 1:
-            return "CANNOT_DELETE_OWNER"
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Thành viên không tồn tại")
+    if staff.role == "OWNER":
+        owner_count = (db.query(EventStaffModel).filter(EventStaffModel.event_id == event_id, EventStaffModel.role == "OWNER").count())
+        if owner_count <= 1:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Không thể xóa owner cuối cùng của sự kiện",
+            )
     db.delete(staff)
     db.commit()
-    return True
-def get_event_members(db:Session,event_id:int,current_user :UserModel):
-    current_staff = db.query(EventStaffModel).filter(EventStaffModel.event_id == event_id,EventStaffModel.user_id == current_user.id).first()
-    if not current_staff:
-        return None
-    return db.query(EventStaffModel,UserModel).join(UserModel,EventStaffModel.user_id == UserModel.id).filter(EventStaffModel.event_id == event_id).all()

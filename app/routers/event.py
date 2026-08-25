@@ -1,73 +1,102 @@
-from fastapi import APIRouter,Depends,HTTPException,status
+from typing import Optional
+
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
+
 from app.db.database import get_db
-from app.models.user import UserModel
-from app.schemas.event import EventCreate,EventUpdate,AddMember,EventResponse
-from app.services.event import create_event,get_current,get_events,update_event,delete_event,add_member,delete_staff,get_event_members
 from app.dependencies.auth import get_current_user
-router = APIRouter(prefix="/event",tags=["Events"])
-@router.post("",response_model=EventResponse,status_code=status.HTTP_201_CREATED)
-def create(data:EventCreate,db:Session = Depends(get_db),current_user:UserModel = Depends(get_current_user)):
-    return create_event(db,data,current_user)
-@router.get("")
-def get_all(search:str |None = None,db:Session = Depends(get_db),current_user:UserModel = Depends(get_current_user)):
-    return get_current(db,current_user,search).all()
-@router.get("/{event_id}")
-def detail(event_id:int,db:Session = Depends(get_db),current_user:UserModel = Depends(get_current_user)):
-    event = get_events(db,event_id,current_user)
-    if not event:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,detail="Bạn ko phải thành viên của sự kiện")
+from app.models.user import UserModel
+from app.schemas.event import EventCreate, EventResponse, EventUpdate, MemberAdd, MemberResponse
+from app.services.event import (
+    add_member,
+    create_event,
+    delete_event,
+    get_event_or_404,
+    list_events_for_user,
+    list_members,
+    remove_member,
+    require_member,
+    require_owner,
+    update_event,
+)
+
+router = APIRouter(prefix="/events", tags=["Events"])
+
+
+@router.post("", response_model=EventResponse, status_code=status.HTTP_201_CREATED)
+def create_event_endpoint(
+    data: EventCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
+):
+    return create_event(db, current_user.id, data)
+
+
+@router.get("", response_model=list[EventResponse])
+def list_events(
+    search: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return list_events_for_user(db, current_user.id, search)
+
+
+@router.get("/{event_id}", response_model=EventResponse)
+def get_event(
+    event_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
+):
+    event = get_event_or_404(db, event_id)
+    require_member(db, event_id, current_user.id)
     return event
-@router.patch("/{event_id}")
-def update(event_id: int,data: EventUpdate,db: Session = Depends(get_db),current_user: UserModel = Depends(get_current_user)):
-    result = update_event(db,event_id,data,current_user)
-    if result == "NOT_OWNER":
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,detail="Chỉ OWNER mới được sửa sự kiện")
-    if result == "EVENT_NOT_FOUND":
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="Sự kiện không tồn tại")
-    return result
-@router.delete("/{event_id}")
-def delete(event_id: int,db: Session = Depends(get_db),current_user: UserModel = Depends(get_current_user)):
-    result = delete_event(db,event_id,current_user)
-    if result == "NOT_OWNER":
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,detail="Chỉ OWNER mới được xóa sự kiện")
-    if result == "EVENT_NOT_FOUND":
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="Sự kiện không tồn tại")
-    return {"message": "Xóa sự kiện thành công"}
-@router.post("/{event_id}/members")
-def add(event_id: int,data: AddMember,db: Session = Depends(get_db),current_user: UserModel = Depends(get_current_user)):
-    result = add_member(db,event_id,data.user_id,current_user)
-    if result == "NOT_OWNER":
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,detail="Chỉ OWNER mới được thêm thành viên")
-    if result == "EVENT_NOT_FOUND":
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="Sự kiện không tồn tại")
-    if result == "USER_NOT_FOUND":
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="User không tồn tại")
-    if result == "ALREADY_MEMBER":
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT,detail="User đã là thành viên")
-    return {"message": "Thêm thành viên thành công"}
-@router.delete("/{event_id}/members/{user_id}")
-def remove_member(event_id: int,user_id: int,db: Session = Depends(get_db),current_user: UserModel = Depends(get_current_user)):
-    result = delete_staff(db,event_id,user_id,current_user)
-    if result == "NOT_OWNER":
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,detail="Chỉ OWNER mới được xóa thành viên")
-    if result == "MEMBER_NOT_FOUND":
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,detail="Thành viên không tồn tại")
-    if result == "CANNOT_DELETE_OWNER":
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="Không được xóa OWNER")
-    return {"message": "Xóa thành viên thành công"}
-@router.get("/{event_id}/members")
-def members(event_id: int,db: Session = Depends(get_db),current_user: UserModel = Depends(get_current_user)):
-    result = get_event_members(db,event_id,current_user)
-    if result is None:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,detail="Bạn không phải thành viên của sự kiện")
-    return [
-        {
-            "user_id": staff.user_id,
-            "full_name": user.full_name,
-            "email": user.email,
-            "role": staff.role,
-            "joined_at": staff.joined_at
-        }
-        for staff, user in result
-    ]
+
+
+@router.patch("/{event_id}", response_model=EventResponse)
+def update_event_endpoint(
+    event_id: int,
+    data: EventUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    event = get_event_or_404(db, event_id)
+    require_owner(db, event_id, current_user.id)
+    return update_event(db, event, data)
+
+
+@router.delete("/{event_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_event_endpoint(
+    event_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
+):
+    event = get_event_or_404(db, event_id)
+    require_owner(db, event_id, current_user.id)
+    delete_event(db, event)
+
+
+@router.post("/{event_id}/members", response_model=MemberResponse, status_code=status.HTTP_201_CREATED)
+def add_member_endpoint(
+    event_id: int,
+    data: MemberAdd,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    get_event_or_404(db, event_id)
+    require_owner(db, event_id, current_user.id)
+    return add_member(db, event_id, data.user_id)
+
+
+@router.get("/{event_id}/members", response_model=list[MemberResponse])
+def list_members_endpoint(
+    event_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
+):
+    get_event_or_404(db, event_id)
+    require_member(db, event_id, current_user.id)
+    return list_members(db, event_id)
+
+
+@router.delete("/{event_id}/members/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+def remove_member_endpoint(
+    event_id: int,
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    get_event_or_404(db, event_id)
+    require_owner(db, event_id, current_user.id)
+    remove_member(db, event_id, user_id)

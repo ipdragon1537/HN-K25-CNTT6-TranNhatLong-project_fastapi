@@ -6,9 +6,11 @@ from app.models.user import UserModel
 from app.schemas.user import UserResponse
 from app.dependencies.auth import get_current_user,require_admin
 router = APIRouter(prefix="/users",tags=["User"])
+
 @router.get("/me",response_model=UserResponse)
 def get_me(current_user:UserModel = Depends(get_current_user)):
     return current_user
+
 @router.get("",response_model=list[UserResponse])
 def get_all_user(search:str | None = None,is_active:bool | None = None,admin:UserModel = Depends(require_admin),db:Session = Depends(get_db)):
     list_user = db.query(UserModel)
