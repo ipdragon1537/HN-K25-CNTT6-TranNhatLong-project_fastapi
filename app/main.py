@@ -4,13 +4,12 @@ from fastapi.responses import JSONResponse
 from app.db.database import Base, engine
 from app.models import event,user,even_task
 from app.routers import auth, event as event_router, event_task as event_task_router, users
+from app.schemas.exceptions import setup_exceptions_handler
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Event Management API")
 
-@app.exception_handler(HTTPException)
-def http_exception_handler(request: Request, exc: HTTPException):
-    return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+setup_exceptions_handler(app)
 
 
 @app.get("/health")

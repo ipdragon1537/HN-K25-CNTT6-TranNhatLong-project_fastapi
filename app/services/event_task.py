@@ -9,6 +9,7 @@ from app.services.event import get_staff
 
 
 def create_task(db: Session, event_id: int, data: EventTaskCreate) -> EventTaskModel:
+    # Nếu có gán assignee thì assignee phải là thành viên (staff) của event
     if data.assignee_id is not None:
         if not get_staff(db, event_id, data.assignee_id):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,detail="Assignee phải là thành viên của sự kiện",)
@@ -22,6 +23,7 @@ def create_task(db: Session, event_id: int, data: EventTaskCreate) -> EventTaskM
         assignee_id=data.assignee_id,
         status="TODO",
     )
+
     db.add(task)
     db.commit()
     db.refresh(task)
@@ -39,6 +41,7 @@ def list_tasks(
     page: int = 1,
     size: int = 10,
 ) -> list[EventTaskModel]:
+    # Lọc task theo event, rồi áp thêm các filter tùy chọn (status/priority/assignee/search)
     query = db.query(EventTaskModel).filter(EventTaskModel.event_id == event_id)
 
     if status_filter:
@@ -51,6 +54,7 @@ def list_tasks(
         query = query.filter(EventTaskModel.title.ilike(f"%{search}%"))
     sort_column = EventTaskModel.due_date if sort_by == "due_date" else EventTaskModel.created_at
     query = query.order_by(sort_column)
+    # Phân trang
     offset = (page - 1) * size
     return query.offset(offset).limit(size).all()
 
@@ -60,8 +64,8 @@ def get_task_or_404(db: Session, task_id: int) -> EventTaskModel:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Công việc không tồn tại")
     return task
 
-
 def update_task(db: Session, task: EventTaskModel, data: EventTaskUpdate) -> EventTaskModel:
+    # exclude_unset=True: chỉ lấy field client thật sự gửi lên, tránh ghi đè bằng None
     update_data = data.model_dump(exclude_unset=True)
 
     if "assignee_id" in update_data and update_data["assignee_id"] is not None:

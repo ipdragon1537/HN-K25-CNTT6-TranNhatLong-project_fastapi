@@ -11,7 +11,7 @@ class EventModel(Base):
 
     id = Column(Integer, primary_key=True)
     name = Column(String(255), nullable=False)
-    description = Column(Text(255))
+    description = Column(Text)
     owner_id = Column(Integer, ForeignKey("users.id"))
     created_at = Column(DateTime, nullable=False, default=datetime.now)
     owner = relationship("UserModel",back_populates="owned_events",foreign_keys=[owner_id])
