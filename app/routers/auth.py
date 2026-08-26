@@ -19,12 +19,24 @@ def register(data: RegisterRequest, db: Session = Depends(get_db)):
 @router.post("/login", response_model=TokenResponse)
 def login(data: LoginRequest, db: Session = Depends(get_db)):
     user = get_user_by_email(db, data.email)
-    if not user or not verify_password(data.password, user.password_hash):
+
+    if not user:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Email hoặc mật khẩu không đúng"
+            status_code=status.HTTP_404_NOT_FOUND, 
+            detail="Tài khoản không tồn tại"
         )
+    
+    if not verify_password(data.password, user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, 
+            detail="Email hoặc mật khẩu không chính xác"
+        )
+        
     if not user.is_active:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Tài khoản không hoạt động")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, 
+            detail="Tài khoản không hoạt động"
+        )
 
     access_token = create_access_token({"sub": str(user.id)})
     return TokenResponse(access_token=access_token)

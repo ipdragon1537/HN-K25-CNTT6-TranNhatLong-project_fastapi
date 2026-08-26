@@ -1,6 +1,6 @@
 from typing import Optional
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, status,HTTPException
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
@@ -27,6 +27,8 @@ router = APIRouter(prefix="/events", tags=["Events"])
 def create_event_endpoint(
     data: EventCreate, db: Session = Depends(get_db), current_user: UserModel = Depends(get_current_user)
 ):
+    if current_user.role == "ADMIN":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN,detail="ADMIM ko đc tạo sự kiện")
     return create_event(db, current_user.id, data)
 
 
@@ -44,7 +46,7 @@ def get_event(
     event_id: int, db: Session = Depends(get_db), current_user: UserModel = Depends(get_current_user)
 ):
     event = get_event_or_404(db, event_id)
-    require_member(db, event_id, current_user.id)
+    require_member(db, event_id, current_user.id)   
     return event
 
 

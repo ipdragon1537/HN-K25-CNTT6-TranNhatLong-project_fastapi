@@ -52,6 +52,12 @@ def require_owner(db: Session, event_id: int, user_id: int) -> EventStaffModel:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Chỉ Owner mới có quyền thực hiện")
     return staff
 
+def require_member_status(db:Session,event_id:int,user_id:int):
+    staff = get_staff(db,event_id,user_id)
+    if staff.role != "MEMBER":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Chỉ Member mới có quyền thực hiện")
+    return staff
+    
 
 def update_event(db: Session, event: EventModel, data: EventUpdate) -> EventModel:
     if data.name is not None:

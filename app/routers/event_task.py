@@ -7,7 +7,7 @@ from app.db.database import get_db
 from app.dependencies.auth import get_current_user
 from app.models.user import UserModel
 from app.schemas.event_task import EventTaskCreate, EventTaskResponse, EventTaskUpdate
-from app.services.event import get_event_or_404, require_member
+from app.services.event import get_event_or_404, require_member,require_owner,require_member_status
 from app.services.event_task import (
     create_task,
     delete_task,
@@ -32,6 +32,7 @@ def create_task_endpoint(
 ):
     get_event_or_404(db, event_id)
     require_member(db, event_id, current_user.id)
+    require_member_status(db,event_id,current_user.id)
     return create_task(db, event_id, data)
 
 
@@ -50,6 +51,7 @@ def list_tasks_endpoint(
 ):
     get_event_or_404(db, event_id)
     require_member(db, event_id, current_user.id)
+    require_member_status(db,event_id,current_user.id)
     return list_tasks(
         db,
         event_id,
@@ -69,6 +71,7 @@ def get_task_endpoint(
 ):
     task = get_task_or_404(db, task_id)
     require_member(db, task.event_id, current_user.id)
+    require_member_status(db,task.event_id,current_user.id)
     return task
 
 
